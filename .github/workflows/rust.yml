@@ -13,12 +13,31 @@ env:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            artifact-name: sshg-linux
+            binary-name: sshg
+            archive-cmd: zip -j
+            archive-ext: zip
+          - os: windows-latest
+            target: x86_64-pc-windows-msvc
+            artifact-name: sshg-windows
+            binary-name: sshg.exe
+            archive-cmd: powershell Compress-Archive -Path
+            archive-ext: zip
+    
+    runs-on: ${{ matrix.os }}
+    
     steps:
       - uses: actions/checkout@v4
       
       - name: Set up Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
         
       - name: Cache cargo registry
         uses: actions/cache@v3
@@ -30,48 +49,75 @@ jobs:
           key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --target ${{ matrix.target }}
         
-      - name: Package Binary and Generate Checksum
+      - name: Package Binary and Generate Checksum (Linux)
+        if: matrix.os == 'ubuntu-latest'
         run: |
           mkdir -p dist
-          cp target/release/sshg sshg
-          chmod +x sshg
-          zip -j dist/sshg-linux.zip sshg
-          sha256sum sshg > dist/sshg-linux.sha256.txt
+          cp target/${{ matrix.target }}/release/${{ matrix.binary-name }} ${{ matrix.binary-name }}
+          chmod +x ${{ matrix.binary-name }}
+          zip -j dist/${{ matrix.artifact-name }}.${{ matrix.archive-ext }} ${{ matrix.binary-name }}
+          sha256sum ${{ matrix.binary-name }} > dist/${{ matrix.artifact-name }}.sha256.txt
+          
+      - name: Package Binary and Generate Checksum (Windows)
+        if: matrix.os == 'windows-latest'
+        run: |
+          mkdir -p dist
+          cp target/${{ matrix.target }}/release/${{ matrix.binary-name }} ${{ matrix.binary-name }}
+          powershell Compress-Archive -Path ${{ matrix.binary-name }} -DestinationPath dist/${{ matrix.artifact-name }}.${{ matrix.archive-ext }}
+          powershell Get-FileHash -Algorithm SHA256 ${{ matrix.binary-name }} | Select-Object Hash | Out-File -FilePath dist/${{ matrix.artifact-name }}.sha256.txt
           
       - name: Upload Artifact
-        if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@v4
         with:
-          name: linux-artifacts
+          name: ${{ matrix.artifact-name }}
           path: dist/*
 
   release:
     name: Create Release
-    if: startsWith(github.ref, 'refs/tags/v')
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
-      - name: Download Artifacts
+      - name: Debug GitHub context
+        run: |
+          echo "GitHub ref: ${{ github.ref }}"
+          echo "GitHub event: ${{ github.event_name }}"
+          echo "Tag condition: ${{ startsWith(github.ref, 'refs/tags/v') }}"
+          echo "Event condition: ${{ github.event_name == 'push' }}"
+          
+      - name: Download Linux Artifacts
         uses: actions/download-artifact@v4
         with:
-          name: linux-artifacts
-          path: dist
+          name: sshg-linux
+          path: dist/linux
+          
+      - name: Download Windows Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sshg-windows
+          path: dist/windows
           
       - name: List downloaded files (debug)
         run: |
           echo "Files in dist:"
-          ls -la dist/
+          find dist -type f -exec ls -la {} \;
+          
+      - name: Prepare release files
+        run: |
+          mkdir -p release
+          cp dist/linux/* release/
+          cp dist/windows/* release/
           
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          files: dist/*
+          files: release/*
           draft: false
           prerelease: false
           generate_release_notes: true
         env:
-          GITHUB_TOKEN: ${{ secrets.RELEASEs_TOKEN }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
