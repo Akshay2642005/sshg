@@ -6,6 +6,12 @@ on:
       - master
     tags:
       - 'v*'
+  pull_request:
+    branches:
+      - master
+
+env:
+  CARGO_TERM_COLOR: always
 
 jobs:
   build:
@@ -25,7 +31,11 @@ jobs:
           rust-version: stable
 
       - name: Build
-        run: cargo build --release
+        run: cargo build --release --verbose
+
+      - name: Run tests (only on ubuntu)
+        if: matrix.os == 'ubuntu-latest'
+        run: cargo test --verbose
 
       - name: Package Binary and Generate Checksum
         run: |
