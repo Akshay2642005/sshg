@@ -2,6 +2,19 @@
 name = "sshg"
 version = "0.1.0"
 edition = "2024"
+authors = ["Akshay B <akshay2642005@gmail.com>"]
+categories = ["command-line-utilities", "development-tools", "parsing"]
+description = "A simple cli tool for sshing into different machines"
+repository = "https://github.com/Akshay2642005/sshg.git"
+readme = "README.md"
+keywords = ["command-line", "ssh", "ansible", "development", "utility"]
+license = "Apache-2.0"
+include = ["README.md", "LICENSE.txt", "**/*.rs", "Cargo.toml"]
+
+[[bin]]
+name = "sshg"
+path = "src/main.rs"
+
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
