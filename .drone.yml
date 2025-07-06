@@ -1,0 +1,26 @@
+kind: pipeline
+type: docker
+name: build
+
+steps:
+  - name: build
+    image: rustlang/rust:nightly-slim
+    commands:
+      - cargo build --release
+      - mkdir -p dist
+      - cp target/release/sshg  dist/
+      - tar -czvf dist.tar.gz dist
+
+  - name: upload-to-minio
+    image: plugins/s3
+    settings:
+      bucket: rust-artifacts
+      access_key:
+        from_secret: MINIO_ACCESS_KEY
+      secret_key:
+        from_secret: MINIO_SECRET_KEY
+      endpoint: http://172.29.78.77:9000
+      region: local
+      path_style: true
+      source: dist.tar.gz
+      target: /releases/latest/

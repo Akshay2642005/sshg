@@ -18,9 +18,7 @@ enum Commands {
     /// Add a new SSH host
     Add,
     /// Connect to a host
-    Connect {
-        host: String,
-    },
+    Connect { host: String },
 }
 
 fn main() {
@@ -32,4 +30,3 @@ fn main() {
         Some(Commands::Connect { host }) => ssh::connect(host),
     }
 }
-
